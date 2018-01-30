@@ -68,6 +68,8 @@ struct Person {
 }
 
 Person jon = Person(29, "Jon");
+jon.age;
+jon.name;
 ```
 
 - Arrays - There are two types of arrays in Solidity: fixed arrays and dynamic arrays.
@@ -102,6 +104,15 @@ Syntax:
 ```solidity
 Person[] public people;
 ```
+
+## Internal/External
+
+Two additional visibility types for functions are `internal` and `external`.
+
+`internal` - is the same as `private`, except that its also accessible to contract that inherit from this contract.
+
+`external` - is similar to public, except that these functions can ONLY be called outside the contract (cannot be called by other functions inside that contract).
+
 
 ## Math
 
@@ -214,6 +225,8 @@ function foo(string _bar) public returns (string) {
 
 ## Inheritance
 
+Inheritance does not inherit privates.
+
 ```solidity
 contract Animal {
   function breathe() public {
@@ -248,5 +261,10 @@ There are two places where variables can be stored - in storage and in memory.
 
 `memory` - temporary variables, erased between external function calls to the contract.
 
+## Interface
+
+
+
 ## Web3
 
+## Questions and Other Notes
