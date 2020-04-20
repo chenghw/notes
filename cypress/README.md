@@ -224,11 +224,48 @@ https://docs.cypress.io/guides/getting-started/installing-cypress.html
 
 ### IDE Integration
 
+- [VSCode](https://docs.cypress.io/guides/tooling/IDE-integration.html#Visual-Studio-Code)
+
 ### Plugins
+
+- [Plugin Directory](https://docs.cypress.io/plugins/)
+
+- [Cypress Axe](https://github.com/avanslaars/cypress-axe)
+  - Provides 3 Cypress commands to help test application accessibility issues using [axe-core](https://github.com/dequelabs/axe-core)
+  - Add `import cypress-axe` to `/support/index.js`
+  - `cy.injectAxe`
+    - This will inject the `axe-core` runtime into the page under test
+    - This must be run after `cy.visit` and before `cy.checkA11y`
+  - `cy.configureAxe`
+    - Purpose - To configure the format of the data used by aXe. This can be used to add new rules, which must be registered with the library to execute.
+  - `cy.checkA11y`
+    - This will run axe against the document at the point in which it is called. This means you can call this after intereacting with your page and uncover accessibility issues introduced as a result of rendering in response to user actions.
+    - Accessibility violations will cause tests to fail.
 
 ### Reporters
 
-### TypeScript
+### [TypeScript](https://docs.cypress.io/guides/tooling/typescript-support.html)
+
+- Recommended tsconfig inside the cypress folder
+
+```json
+{
+  "compilerOptions": {
+    "strict": true,
+    "baseUrl": "../node_modules",
+    "target": "es5",
+    "lib": ["es5", "dom"],
+    "types": ["cypress"]
+  },
+  "include": [
+    "**/*.ts"
+  ]
+}
+```
+
+- [Types for custom commands](https://docs.cypress.io/guides/tooling/typescript-support.html#Types-for-custom-commands)
+- [Types for custom assertions](https://docs.cypress.io/guides/tooling/typescript-support.html#Types-for-custom-assertions)
+- [Types for plugins](https://docs.cypress.io/guides/tooling/typescript-support.html#Types-for-plugins)
 
 ### Visual Testing
 
