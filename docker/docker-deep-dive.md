@@ -661,18 +661,362 @@ Swarm is integral to the future of Docker. But there's two main aspects to it. T
 
 ## Container Networking
 
+- Network Types in Docker
+- Network Services
+- Recap
+
+***Docker Certified Associate Exam***
+- Domain 4: Networking
+  - Create a Docker bridge network for a developer to use for their containers
+  - Publish a port so that an application is accessible externally
+  - Identify which IP and port a container is externally accessible on
+  - Describe the different types and use cases for the built-in network drivers
+  - Deploy a service on a Docker overlay network
+
 ### Network Types
+
+#### Bride Networking
+
+Sometimes called *single-house networking*, it is the oldest and most common. 
+
+Linux - bridge driver  
+Windows - nat driver
+
+**docker0** - default bridge network
+
+Got a host running docker with a built in network called Bridge, or Nat on Windows. You can create more bridges, but each one of these is an island. Now we add containers, and each container gets an IP on that bridge network, and they can all talk to each other. However containers on separate bridges cannot without mapping of ports to the host.
+
+#### Overlay Networking
+
+Sometimes called *multi-host networks*. An overlay is a single lay-two network spanning multiple hosts. It doesn't matter if these are all on different networks. The overlay is encrypted by default. Overlay is for containers only, so no communicating to VMs etc.
+
+`docker network create -o encrypted`
+- `-o encrypted` - add encryption on the data plane
+
+For overlay, really need Swarm mode active since the Overlay network leverages a bunch of security stuff in Swarm. It also being scoped to the Swarm means that its available to every node in the Swarm.
+
+#### MACVLAN (transparent on windows)
+
+This gives every container its own IP address and MAC address on the existing network. Meaning that containers can be viewed as first class citizens on your existing VLANs. No bridges or port mapping necessary. However this requires **promiscuous mode** on the host. Public cloud providers generally don't allow **promiscuous mode**. IPVLAN is an alternative that does not require **promiscuous mode** but it isn't fully backed yet.
+
+#### Hands-on
+
+`docker network ls` - list all networks
+
+`docker network inspect bridge` - inspect the default bridge
+- containers will get IPs from the IPAM.Config.Subet range
+
+`docker port {CONTAINER}` - shows the port mappings
+
+By default any containers added to the host will go on the default bridge unless told otherwise.
+
+`docker network create -d {DRIVER NAME} {NETWORK NAME}` - create a new network
+- `-d bridge` - driver options, for this case bridge network
+- `-d overlay` - driver options, for this case overlay network
+
+`docker container run --network {NETWORK NAME}` - run a container on a specific network
+
+`docker service create -d --name pinger --replicas 2 --network overnet alpine sleep 1d`
 
 ### Network Services
 
+Some built in network services include **Service Discovery** and **Load Balancing**.
+
+**Service Discovery** is all about locating services in a swarm 
+- every new service gets a name
+- service names are registered with DNS on the swarm
+- every service task gets a DNS resolver that forwards lookups to the swarm based DNS service
+- all this equates to, all swarm services are pingable by name as long as you are pinging it from on the same network
+
+**Load Balancing** let's us access a service from any node in the swarm, even nodes not hosting the service, and it balances load across them.
+- ingress load balancing
+  - thats where external clients can access a swarm service via any of the nodes in the swarm
+  - this means that you can hit any node within a swarm even if it isn't running the service, and still hit the service
+
+`docker service create -d --name web --network overnet --replicas 1 -p 8080:80` - the important part of this is the port mapping. The service is mapping its 80 to every swam nodes 8080, this is swarm wide.  
+
 ### Recap
+
+Out of the box Docker provides a bunch of drivers for different use cases. The bridge driver's fine for development and really simple to use-cases. It's all single host and external access requires port mappings. Overlays are way better. This is proper multi-host networking. It creates a multi-host, layer two network so that containers on different hosts can easily join the same secure network, however it is container only. If we want to plug our containers into existing VLANs, we want to take a look at MACVLAN, or transparent on Windows. This gives every container its own MAC address and its own IP address on your existing VLAN but it requires promiscuous mode on the host adapter, which is not supported on most cloud platforms. There is also built-in network services. Service discovery makes every service on the swarm discoverable via a built-in swarm DNS. Load balancing makes it so that every node in the swarm knows about every service. It lets up point external load balancers to any or in fact every node in the swarm. No matter which node we hit, we reach the intended service. The stack is pluggable so you can plug in third-party drivers for things like IP address management and maybe different network topologies.
 
 ## Working with Volumes and Persistent Data
 
+Volumes are a great way to store persistent data and they're nicely decoupled from containers.
+
+- Big Picture
+- Managing Volumes
+- Working with Volumnes
+- Recap
+
+***Docker Certified Associate Exam***
+- Domain 1: Orchestration
+  - Mount volumes
+- Domain 6: Storage and Volumes
+  - Describe how volumes are used with Docker for persistent storage
+
+### The Big Pciture
+
+Every container gets its own non-persistent storage. Its free and comes with every container. Usually its on local block storage managed by the storage driver or the graph driver. Focus is on performance and does all the union file system for the container.
+
+Persistent storage is called volume storage. We have to specifically create it and it lives outside of the graph driver away from all the union mount stuff. Generally speaking, a volume is a directory on the Docker host that's mounted straight into the container at a specific mount point. Behind the scenes it can be mounted else where, so long as that storage system has a Docker volume driver. Volumes live outside of the container space and has its own `docker volume` sub command, but it seemlessly plugs into containers and services. You can attach more than one container to a volume, however you need to be careful to avoid corruption.
+
+### Managing Volumes
+
+`docker volume` sub command with all the usual suspects `ls`, `create`, `inspect`, `rm`, etc.
+
+### Attaching Volumes to Containers
+
+`docker container run -dit --name voltest --mount source=ubervol,target=/vol alpine:latest`
+- `--mount` - this flag is how we attach a volume to a container. If you specify a volume that doesn't exist, Docker is going to create one for you
+  - `source` - the name of the volume, either fine or create it
+  - `target` - where in the container to mount it
+
+Linux - `/var/lib/docker/volumes/{NAME}/_data/` - where the data lives on the host
+
+As long as a volume is in use by a container, it cannot be deleted.
+
+### Recap
+
+All containers get a local graph driver storage, it's what stacks the image layers and adds the writeable container layer but it's bound to the container. so you delete the container and the graph driver storage goes with it.
+
+Graph drivers are being replaced in containerd with ***snapshotters***
+
+For persistent data, we need volumes. Volumes operate outside of the graph driver and have a life cycle totally independent of the container. To manage volumes, you leverage the `docker volume` sub command. Thanks to the plugin architecture, volumes can exist not only on the local block storage of your Docker host, but also on high-end external systems as long as it's got a Docker storage driver.
+
 ## Working with Secrets
+
+- Big Picture
+- Secrets on the CLI
+- Secrets in Apps
+- Recap
+
+***Docker Certified Associate Exam***
+- Domain 1: Orchestration
+  - Add networks, publish ports
+- Domain 4: Networking
+  - Deploy a service on a Docker overlay network
+  - Publish a port so that an application is accessible externally
+
+### The Big Picture
+
+**Docker Secrets** is a text blob that is up to 500kb, half a mb.
+- safe
+- secure
+- infrastructure independent
+- Requires Swarm-mode (secrets come out of the box) and just for services
+- Linux: Docker 1.13+
+- Windows: Docker 17.06+
+
+In Swarm mode we can create a secret, `docker secret create ...`. This gets sent to the manager over a secure connection, and the manager puts it in the store and is encrypted at rest. You can then explicitly gant a service access to a secret. `docker service create --name {NAME} --secret {SECRET} --replicas 2 ...`. After that, a manager then sends that secret over a secured connection to just the nodes in the swarm that are running a replica for the service. Least-priviledged model. Once inside the worker node, it gets mounted inside the service task in its unencrypted form. Linux: `/run/secrets/`, Windows: `C:\ProgramData\Docker\Secrets\`. For Linux, that folder is an temp FD volume, so an in-memory file system. At no point is the secret ever persisted to disk on the node. For Windows, there is no in-memory file system, so it does get persisted to disk on the node. So you may want to mount the Docker root directory using BitLocker or something. Once the service is removed or the secret is revoked, then the worker node is instructed to flush it from memory.
+
+### Secrets on the CLI
+
+`docker secret create wp-sec-v1 ./classified` - create a secret with the name `wp-sec-v1` and use the contents of the `./classified` file as the actual secret.
+
+### Secrets in Apps
+
+### Recap
+
+**Docker Secrets** a safe a secure way to publish secrets to applications, and it is platform-independent. First we create the secret, which in the Docker world is a half a mb in size. When we create it, it gets sent to the Swarm over a secured network connection. It is then placed in the raft where it's encrypted at rest. Then we create or update a service, and as apart of this operation we authorize the service to access the secret, which causes the control plane to send it to the nodes in the swarm that are running replicas for that service. Again, it's encrypted in flight. When it hits the node, it is never persisted to disk (except for Windows). Instead it gets mounted into the service replica, which is a container, as a file in an in-memory file system, and it is unencrypted at this point. Linux: `/run/secrets/`, Windows: `C:\ProgramData\Docker\Secrets\`. Once the service is done, the control plane tells the client on the worker nodes to flush it from the nodes. 
 
 ## Deploying in Production with Stacks and Services
 
+- Big Picture
+- Stack Files
+- Deploy and Manage a Stack
+
+***Docker Certified Associate Exam***
+- Domain 1: Orchestration
+  - Extend the instructions to run individual containers into running services under swarm
+  - Convert an application deployment into a stack file using a YAML compose file with `docker stack deploy`
+  - Manipulate a running stack of services
+  - Increase number of replicas
+  - Mount volumes
+
+### The Big Picture
+
+Most apps are a bunch of smaller services that work together. And in the Docker world, that's Services with a capital S. So the Service object in the Docker engine API. Manage of bunch of these Services for them to work together...enter stacks.
+
+Stacks work on the Docker command line(CLI), the universal control plain(UCP) GUI, and Docker Cloud. 
+
+Dev View:  
+Our application code is split up, some may be written in different languages (Python, Node, Go, etc.). We make each one of these a container. For scalability and self-healing, we deploy them as (Docker)Services. Each service at this point is still deployed and managed separately, but that is not ideal. So we group them as a stack. The stack is the highest layer of the Docker application hierarchy. 
+
+Ops View:  
+We start with a stack and define a bunch of services, networks, and volumes. The services define containers. We deploy and manage stacks with the `docker stack` sub command. Or through Docker Cloud on the web UI. The stack file is basically a compose file. 
+
+A stack file is a great way to define your app. A developer can create a stack file and hand it over to ops and ops will have a great description of the application. You can even fork your stack file for things like dev, test, and prod. 
+
+### Stack Files
+
+Stack files are pretty much compose files, but they need to call at least the v3 file format (`version: "3"`)
+
+In the example below we are defining 6 services, 2 networks, and a volume. There are 4 top level keys, `version`, `services`, `networks`, and `volumes`. Each service is its own JSON dictionary with its own set of keys. Taking a look at the `redis` service, we have the `image` it is using, the `ports` its exposes, the `networks` its using, and the `deploy`. The `deploy` is the new stuff in v3. It's where we define all the swarm and the stack stuff. 1 replica (so one container), when we do rolling updates, we update 2 at a time (parrallelism) with a delay of 10s in-between each. And lastly a restart policy. 
+
+Topology-aware scheduling
+- Schedule based on node labels etc
+Health-aware scheduling
+- Only schedule to healthy nodes
+H/A scheduling
+- Spread replicas across multiple nodes
+
+Example:
+```yml
+version: "3"
+services:
+
+  redis:
+    image: redis:alpine
+    networks:
+      - frontend
+    deploy:
+      replicas: 1
+      update_config:
+        parallelism: 2
+        delay: 10s
+      restart_policy:
+        condition: on-failure
+  db:
+    image: postgres:9.4
+    environment:
+      POSTGRES_USER: "postgres"
+      POSTGRES_PASSWORD: "postgres"
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    networks:
+      - backend
+    deploy:
+      placement:
+        constraints: [node.role == manager]
+  vote:
+    image: dockersamples/examplevotingapp_vote:before
+    ports:
+      - 5000:80
+    networks:
+      - frontend
+    depends_on:
+      - redis
+    deploy:
+      replicas: 2
+      update_config:
+        parallelism: 2
+      restart_policy:
+        condition: on-failure
+  result:
+    image: dockersamples/examplevotingapp_result:before
+    ports:
+      - 5001:80
+    networks:
+      - backend
+    depends_on:
+      - db
+    deploy:
+      replicas: 1
+      update_config:
+        parallelism: 2
+        delay: 10s
+      restart_policy:
+        condition: on-failure
+
+  worker:
+    image: dockersamples/examplevotingapp_worker
+    networks:
+      - frontend
+      - backend
+    depends_on:
+      - db
+      - redis
+    deploy:
+      mode: replicated
+      replicas: 1
+      labels: [APP=VOTING]
+      restart_policy:
+        condition: on-failure
+        delay: 10s
+        max_attempts: 3
+        window: 120s
+      placement:
+        constraints: [node.role == manager]
+
+  visualizer:
+    image: dockersamples/visualizer:stable
+    ports:
+      - "8080:8080"
+    stop_grace_period: 1m30s
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock"
+    deploy:
+      placement:
+        constraints: [node.role == manager]
+
+networks:
+  frontend:
+  backend:
+
+volumes:
+  db-data:
+```
+
+### Deploy and Manage Stacks
+
+`docker stack deploy -c stackfile.yml {NAME}`
+
+`docker stack ps {NAME}`
+
+`docker stack services {NAME}`
+
+`docker service scale voter_vote=20` - increase number of replicas
+- better way of doing this would be updating the stackfile.yml and redeploying the stackfile
+
+### Recap
+
+Apps are generally a collection of smaller services. In the Docker world, these apps are made up of containers that are run as services. We then group these services into stacks. A stack is a bunch of services that make up an app. We define it in a YAML file. Pretty much a compose file with a few extensions to deal with Swarm stuff. You do need to be using version 3 or later of the compose file spec. Even though it is using a compose file, you don't need to install compose as a separate tool. The stack stuff is baked directly into the engine. You must be in Swarm mode, because stacks are all about Swarm. You deploy with the `docker stack deploy` command. This does a few things, it records the desired state of the app on a cluster, and Raft will make sure every manager will have the latest copy of it. Secondly, it deploys the app which includes all the services, networks, volumes, etc. Thanks to background reconciliation loops, swarm manages the app. Its got this notion of desired state, from the stackfile, of how the app should look on the cluster. If anything every changes, ie a node failing, then Swarm sees that the observed state of the cluster is no longer matching the desired state so it goes to work fixing it. We end up with a self-documented, reproducible app that fits nicely into version control.
+
 ## Enterprise Tooling
 
+- Show some enterprise-grade value-add products
+- Cover some DCA exam objectives
+
+- Big Picture
+- Docker Universal Control Plane (UCP)
+- Docker Trusted Registry (DTR)
+- RBAC
+- Image Scanning
+- Load Balancing
+- Recap
+
+***Docker Certified Associate Exam***
+- Domain 2: Image Creation, Management, and Registry
+  - Deploy a Registry
+  - Configure a Registry
+  - Login to a registry
+  - Push an image to a registry
+- Domain 3: Installation and Configuration
+  - Consistently repeat steps to deploy Docker engine, UCP, and DTR on AWS and on premises in an HA config
+- Domain 4: Networking
+  - Use Docker to load balance HTTP/HTTPS traffic to an application (Configure L7 load balancing with Docker EE)
+- Domain 5: Security
+  - Demonstrate that an image passes a security scan
+  - Configure RBAC in UCP
+  - Describe the difference between UCP workers and managers
+
+### The Big Picture
+
+### Docker Universal Control Plane (UCP)
+
+### Docker Trusted Registry (DTR)
+
+### Role-based Access Control (RBAC)
+
+### Image Scanning
+
+### Layer 7 Load Balancing
+
+### Recap
+
 ## What Next
+
+- [Meetups](https://events.docker.com/chapters/)
+- [DockerCon](https://dockercon.com)
+- [Docker Certified Associate Exam](https://success.docker.com/certification)
+- [Kubernetes](https://kubernetes.io/)
